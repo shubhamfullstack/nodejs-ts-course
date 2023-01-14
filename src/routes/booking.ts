@@ -1,6 +1,9 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
+
+import { BadRequestError } from "../middlewares/bad-request-error";
 import { RequestValidationError } from "../middlewares/request-validation-error";
+import { Booking } from "../models/booking";
 
 let router = express.Router();
 
@@ -11,8 +14,9 @@ router.post(
       .isString()
       .withMessage("Provide a valid account name"),
     body("amount").isNumeric().withMessage("Provide a valid amount"),
+    body("type").isIn(['FINANCE','GAS']).withMessage("Invalid booking types")
   ],
-  (req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const errors = validationResult(req);
 
     if(!errors.isEmpty()){
@@ -20,7 +24,26 @@ router.post(
     }
 
     let { accountName, amount, type } = req.body;
-    res.status(200).send({message:'done'})
+
+    const existingBooking = await Booking.findOne({ accountName });
+
+    if (existingBooking) {
+      throw new BadRequestError('AccountName in use');
+    }
+
+    const booking = Booking.build({ accountName, amount, type });
+    await booking.save();
+
+    res.status(201).send(booking);
+  }
+);
+
+router.get(
+  "/api/booking",
+  async (req: Request, res: Response) => {
+    let bookings = await Booking.find();
+
+    res.status(200).send(bookings);
   }
 );
 
